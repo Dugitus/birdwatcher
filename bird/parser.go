@@ -537,14 +537,6 @@ func parseRoutesCount(reader io.Reader) Parsed {
 	return res
 }
 
-func isCorrectChannel(currentIPVersion string) bool {
-	if len(currentIPVersion) == 0 {
-		return true
-	}
-
-	return currentIPVersion == IPVersion
-}
-
 func parseProtocol(lines string) Parsed {
 	res := Parsed{}
 	routeChanges := Parsed{}
@@ -557,20 +549,11 @@ func parseProtocol(lines string) Parsed {
 		func(l string) bool { return parseProtocolStringValuesRx(l, res) },
 	}
 
-	ipVersion := ""
-
 	reader := strings.NewReader(lines)
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		line := scanner.Text()
-
-		if m := regex.protocol.channel.FindStringSubmatch(line); len(m) > 0 {
-			ipVersion = m[1]
-		}
-
-		if isCorrectChannel(ipVersion) {
-			parseLine(line, handlers)
-		}
+		parseLine(line, handlers)
 	}
 
 	res["route_changes"] = routeChanges
