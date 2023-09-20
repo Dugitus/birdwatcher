@@ -20,7 +20,6 @@ type Config struct {
 	Ratelimit    bird.RateLimitConfig
 	Status       bird.StatusConfig
 	Bird         bird.BirdConfig
-	Bird6        bird.BirdConfig
 	Parser       bird.ParserConfig
 	Cache        bird.CacheConfig
 	Housekeeping HousekeepingConfig
