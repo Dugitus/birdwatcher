@@ -3,6 +3,7 @@ package bird
 import (
 	"bufio"
 	"io"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -110,6 +111,15 @@ func specialLine(line string) bool {
 	return (strings.HasPrefix(line, "BIRD") || strings.HasPrefix(line, "Access restricted"))
 }
 
+func syntaxErrorLine(line string) bool {
+	isErr := strings.HasPrefix(line, "syntax error,")
+	if isErr {
+		log.Println("ERROR:", line)
+	}
+
+	return isErr
+}
+
 func parseStatus(reader io.Reader) Parsed {
 	res := Parsed{}
 
@@ -178,6 +188,10 @@ func parseProtocols(reader io.Reader) Parsed {
 	lines := newLineIterator(reader, false)
 	for lines.next() {
 		line := lines.string()
+
+		if syntaxErrorLine(line) {
+			return SyntaxError
+		}
 
 		if emptyString(line) {
 			if !emptyString(proto) {

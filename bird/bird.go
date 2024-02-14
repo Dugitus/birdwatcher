@@ -33,6 +33,7 @@ var RunQueue sync.Map // queue birdc commands before execution
 
 var NilParse Parsed = (Parsed)(nil) // special Parsed values
 var BirdError Parsed = Parsed{"error": "bird unreachable"}
+var SyntaxError Parsed = Parsed{"error": "syntax error"}
 
 func IsSpecial(ret Parsed) bool { // test for special Parsed values
 	return reflect.DeepEqual(ret, NilParse) || reflect.DeepEqual(ret, BirdError)
@@ -101,8 +102,6 @@ func fromCache(key string) (Parsed, bool) {
 	} else {
 		return val, false
 	}
-	//DEBUG log.Println(err)
-
 }
 
 // Determines the key in the cache, where the result of specific functions are stored.
@@ -134,11 +133,14 @@ func Run(args string) (io.Reader, error) {
 	cmd = append(cmd, argsList...)
 
 	out, err := exec.Command(birdc, cmd...).Output()
+	_out := bytes.NewReader(out)
+
 	if err != nil {
-		return nil, err
+		log.Println("ERROR:", err, cmd)
+		return _out, err
 	}
 
-	return bytes.NewReader(out), nil
+	return _out, nil
 }
 
 func InstallRateLimitReset() {
@@ -199,18 +201,22 @@ func RunAndParse(useCache bool, key string, cmd string, parser func(io.Reader) P
 	if !checkRateLimit() {
 		wg.Done()
 		RunQueue.Delete(cmd)
+		log.Println("ERROR: Rate limit is reached")
 		return NilParse, false
 	}
 
 	out, err := Run(cmd)
+	parsed := parser(out)
+
 	if err != nil {
-		// ignore errors for now
 		wg.Done()
 		RunQueue.Delete(cmd)
+		if reflect.DeepEqual(parsed, SyntaxError) {
+			return SyntaxError, false
+		}
+
 		return BirdError, false
 	}
-
-	parsed := parser(out)
 
 	if updateCache != nil {
 		updateCache(&parsed)
@@ -253,13 +259,21 @@ func Status(useCache bool) (Parsed, bool) {
 		}
 	}
 
-	birdStatus, from_cache := RunAndParse(useCache, GetCacheKey("Status"), "status", parseStatus, updateParsedCache)
-	return birdStatus, from_cache
+	return RunAndParse(
+		useCache,
+		GetCacheKey("Status"),
+		"status",
+		parseStatus,
+		updateParsedCache)
 }
 
 func ProtocolsShort(useCache bool) (Parsed, bool) {
-	res, from_cache := RunAndParse(useCache, GetCacheKey("ProtocolsShort"), "protocols", parseProtocolsShort, nil)
-	return res, from_cache
+	return RunAndParse(
+		useCache,
+		GetCacheKey("ProtocolsShort"),
+		"protocols",
+		parseProtocolsShort,
+		nil)
 }
 
 func Protocols(useCache bool) (Parsed, bool) {
@@ -281,8 +295,22 @@ func Protocols(useCache bool) (Parsed, bool) {
 		toCache(GetCacheKey("metaProtocol"), metaProtocol)
 	}
 
-	res, from_cache := RunAndParse(useCache, GetCacheKey("Protocols"), "protocols all", parseProtocols, createMetaCache)
-	return res, from_cache
+	return RunAndParse(
+		useCache,
+		GetCacheKey("Protocols"),
+		"protocols all",
+		parseProtocols,
+		createMetaCache)
+}
+
+func Protocol(useCache bool, protocol string) (Parsed, bool) {
+	cmd := "protocols all " + protocol
+	return RunAndParse(
+		useCache,
+		GetCacheKey("Protocol", protocol),
+		cmd,
+		parseProtocols,
+		nil)
 }
 
 func ProtocolsBgp(useCache bool) (Parsed, bool) {

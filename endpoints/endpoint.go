@@ -73,20 +73,22 @@ func Endpoint(wrapped endpoint) httprouter.Handle {
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
 		}
+
 		if reflect.DeepEqual(ret, bird.BirdError) {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Header().Set("Content-Type", "application/json")
-			js, _ := json.Marshal(ret)
-			w.Write(js)
 			return
 		}
+
+		if reflect.DeepEqual(ret, bird.SyntaxError) {
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
+
 		res["api"] = GetApiInfo(&ret, from_cache)
 
 		for k, v := range ret {
 			res[k] = v
 		}
-
-		w.Header().Set("Content-Type", "application/json")
 
 		// Check if compression is supported
 		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -97,6 +99,7 @@ func Endpoint(wrapped endpoint) httprouter.Handle {
 			json := json.NewEncoder(gz)
 			json.Encode(res)
 		} else {
+			w.Header().Set("Content-Type", "application/json")
 			json := json.NewEncoder(w)
 			json.Encode(res) // Fall back to uncompressed response
 		}
